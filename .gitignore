@@ -1,0 +1,26 @@
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+.DS_Store
+
+### PyCharm ###
+__pycache__/
+*.py[cod]
+.pytest_cache
+
+### Virtualenv ###
+ENV
+venv
+
+### System ###
+nohup.out
+celerybeat-schedule
+.env
+sql_app.db
+
+bin/
+lib/
+pyvenv.cfg

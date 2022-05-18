@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  tropico_chat:
+    build: .
+    env_file: .env
+    environment:
+      - DEV_CONTAINER=True
+    networks:
+      - chat-prod
+    command: /app/start_ws.sh
+    extra_hosts:
+      - "db:${DB_IP}"
+      - "redis:${DB_IP}"
+    ports:
+      - "8000:8000"
+
+networks:
+  chat-prod:
+    external: true
