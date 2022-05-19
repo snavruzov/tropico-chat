@@ -7,6 +7,7 @@ from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 
 from api.routes import router as api_router
 from core import tasks
+from core.middlewares.authenticator import AuthenticateMiddleware
 from core.middlewares.botblock import BotBlockMiddleware
 
 
@@ -25,6 +26,7 @@ def get_application():
     )
 
     app.add_middleware(BotBlockMiddleware)
+    app.add_middleware(AuthenticateMiddleware)
 
     app.add_event_handler("startup", tasks.create_start_app_handler(app))
     app.add_event_handler("shutdown", tasks.create_stop_app_handler(app))

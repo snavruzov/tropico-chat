@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from typing import List, Optional
@@ -7,6 +8,7 @@ from fastapi import FastAPI
 from starlette.status import HTTP_400_BAD_REQUEST
 from starlette.testclient import TestClient
 
+from api import tools
 from db.models import UserInfo, UserChat
 from db.repositories.models import UserRepository, AgentRepository
 
@@ -95,9 +97,26 @@ class TestChatRequests:
         async def mock_get_chat_info(*args, **kwargs):
             return await MockUserRepository()._chat_info()
 
-        monkeypatch.setattr(UserRepository, 'get_chat_info', mock_get_chat_info)
+        monkeypatch.setattr(UserRepository, 'check_chat_info', mock_get_chat_info)
 
         with client.websocket_connect(app.url_path_for("chat-ws", channel='f9eb7ff2-eed0-4c0a-83ba-b0503b59a5cc'),
                                       headers={"user-agent": "Mozilla/5.0"}) as websocket:
             websocket.close()
+
+
+class TestTools:
+    def test_json_fixer(self, glued_json):
+        fixed_json_str = tools.json_fixer(glued_json)
+        assert len(fixed_json_str) == 2
+
+    def test_json_fixer_dict(self, glued_json):
+        fixed_json_str = tools.json_fixer(glued_json)
+        for js in fixed_json_str:
+            assert isinstance(json.loads(js), dict)
+
+    def test_json_fixer_dict_element(self, glued_json):
+        fixed_json_str = tools.json_fixer(glued_json)
+        for js in fixed_json_str:
+            data = json.loads(js)
+            assert data['foo'] in ['bar', 'zulu']
 

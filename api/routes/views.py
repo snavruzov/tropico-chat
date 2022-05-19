@@ -1,11 +1,10 @@
 import asyncio
-import json
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Header, Depends, HTTPException, Body
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Depends, HTTPException, Body
 from loguru import logger
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
-from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
+from starlette.status import HTTP_400_BAD_REQUEST
+from websockets.exceptions import ConnectionClosedError
 
 from api.dependencies.database import get_repository, get_ws_repository
 from db.models import UserChat, UserForm
@@ -24,6 +23,8 @@ class SocketManager:
 
 manager = SocketManager()
 
+WebSocketConnectionError = (WebSocketDisconnect, ConnectionClosedError)
+
 
 async def receiving(websocket):
     try:
@@ -40,13 +41,13 @@ async def chat(
         users_repo: UserRepository = Depends(get_ws_repository(UserRepository))):
 
     await manager.connect(websocket)
-    pubsub = websocket.app.state._db.redis.pubsub()
+    pubsub = websocket.app.state.db.redis.pubsub()
     try:
         ws_status = asyncio.ensure_future(
              receiving(websocket)
         )
 
-        chat_info = await users_repo.get_chat_info()
+        chat_info = await users_repo.check_chat_info()
         if not chat_info:
             await websocket.close()
             raise WebSocketDisconnect()
@@ -61,56 +62,23 @@ async def chat(
                     break
                 msg = await pubsub.get_message(ignore_subscribe_messages=True)
                 if msg and msg.get('data'):
-                    msg_data = json.loads(msg.get('data'))
-                    if msg_data.get('channel_id') == channel:
-                        await websocket.send_json(msg)
+                    await websocket.send_json(msg)
 
-            await pubsub.unsubscribe(channel)
-
-    except WebSocketDisconnect:
-        logger.warning("WS CLOSED!")
-        await pubsub.close()
-    except ConnectionClosedError:
-        await websocket.close()
-    except ConnectionClosedOK:
-        await websocket.close()
-    except RuntimeError as err:
-        logger.error(err)
-        await pubsub.close()
+    except WebSocketConnectionError as err:
+        logger.error("Raised websocket errors!", err)
     finally:
+        await pubsub.unsubscribe(channel)
         await pubsub.close()
 
 
 @router.post("/user/publish", name='user-publish', status_code=201)
 async def chat_publish(
         request: Request,
-        users_repo: UserRepository = Depends(get_repository(UserRepository)),
-        x_session_id: Optional[str] = Header(None)):
-
-    if not x_session_id:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="No session found with that query.")
+        users_repo: UserRepository = Depends(get_repository(UserRepository))):
 
     body_ = await request.json()
-    if body_:
+    if body_ and body_.get('message'):
         await users_repo.set_chat_message(message=body_['message'])
-    else:
-        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="No message passed.")
-
-    return {"success": 1}
-
-
-@router.post("/wp/user/publish", name='user-wp-publish', status_code=201)
-async def chat_wp_publish(
-        request: Request,
-        users_repo: UserRepository = Depends(get_repository(UserRepository)),
-        x_session_id: Optional[str] = Header(None)):
-
-    if not x_session_id:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="No session found with that query.")
-
-    body_ = await request.json()
-    if body_:
-        await users_repo.set_wp_chat_message(message=body_['message'], name=body_['name'], phone=body_['phone'])
     else:
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="No message passed.")
 
@@ -120,11 +88,7 @@ async def chat_wp_publish(
 @router.post("/update", name='form-update', status_code=201)
 async def chat_update(
         user_form: UserForm = Body(...),
-        users_repo: UserRepository = Depends(get_repository(UserRepository)),
-        x_session_id: Optional[str] = Header(None)):
-
-    if not x_session_id:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="No session found with that query.")
+        users_repo: UserRepository = Depends(get_repository(UserRepository))):
 
     if not user_form.phone and not user_form.email:
         raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="At least one contact information required")
@@ -143,9 +107,5 @@ async def chat_update(
             response_model_exclude={"id", "chat_id"},
             status_code=200)
 async def chat_history(
-        users_repo: UserRepository = Depends(get_repository(UserRepository)),
-        x_session_id: Optional[str] = Header(None)):
-    if not x_session_id:
-        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="No session found with that query.")
-
+        users_repo: UserRepository = Depends(get_repository(UserRepository))):
     return await users_repo.get_last_chat_history()

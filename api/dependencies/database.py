@@ -7,7 +7,7 @@ from db.repositories.models import UserRepository
 
 
 def get_database(request: Request) -> BaseDatabase:
-    return request.app.state._db
+    return request.app.state.db
 
 
 def get_ws_headers(ws: WebSocket):
@@ -21,7 +21,7 @@ def get_headers(r: Request):
 
 
 def get_ws_database(websocket: WebSocket) -> BaseDatabase:
-    return websocket.app.state._db
+    return websocket.app.state.db
 
 
 def get_repository(repo_type: Type[UserRepository]) -> Callable:

@@ -120,7 +120,7 @@ class UserRepository(object):
         else:
             self.ip_ = '82.215.106.137'
 
-    async def _chat_info(self) -> UserInfo:
+    async def __chat_info(self) -> UserInfo:
         chat_db = await self.db.fetch_one(query=GET_USER_CHAT_ID, values={"session_id": self.session_id_})
 
         if chat_db:
@@ -131,7 +131,13 @@ class UserRepository(object):
                                                                        "context": context_})
             return UserInfo(**chat_db)
 
-    async def _create_info(self, email_: Optional[str], phone_: Optional[str], name: str = None) -> UserInfo:
+    async def __check_info(self) -> UserInfo:
+        chat_db = await self.db.fetch_one(query=GET_USER_CHAT_ID, values={"session_id": self.session_id_})
+
+        if chat_db:
+            return UserInfo(**chat_db)
+
+    async def __create_info(self, email_: Optional[str], phone_: Optional[str], name: str = None) -> UserInfo:
         ip_info = get_ip_info(self.ip_)
         city = 'nowhere'
         country = 'nowhere'
@@ -163,20 +169,20 @@ class UserRepository(object):
 
         return UserInfo(**chat_db)
 
-    async def _get_chat_id(self) -> UserInfo:
-        ch_info = await self._chat_info()
+    async def __get_chat_id(self) -> UserInfo:
+        ch_info = await self.__chat_info()
         if not ch_info:
-            ch_info = await self._create_info(None, None)
+            ch_info = await self.__create_info(None, None)
 
         return ch_info
 
-    async def _chat_history(self):
-        ch_info = await self._get_chat_id()
+    async def __chat_history(self):
+        ch_info = await self.__get_chat_id()
         chat_record = await self.db.fetch_all(query=GET_USER_LAST_CHATS_QUERY,
                                               values={"chat_id": ch_info.id, "timedelta": int(time.time())-86400})
 
         if not chat_record or len(chat_record) == 0:
-            welcome_chat = await self._get_chat_welcome()
+            welcome_chat = await self.__get_chat_welcome()
             chat_record = [{"id": 1,
                             "name": welcome_chat.name,
                             "chat_id": 0,
@@ -187,7 +193,7 @@ class UserRepository(object):
 
         return [UserChat(**chat_db) for chat_db in chat_record]
 
-    async def _chat_intro(self, chat_info: UserInfo) -> IntroChat:
+    async def __chat_intro(self, chat_info: UserInfo) -> IntroChat:
         chat_intro = await self.db.fetch_one(query=GET_CHAT_INTRO_QUERY, values={"lang": self.lang_})
         chat_record = await self.db.fetch_one(query=GET_USER_LAST_CHATS_EXISTS,
                                               values={"chat_id": chat_info.id, "timedelta": int(time.time()) - 86400})
@@ -215,11 +221,11 @@ class UserRepository(object):
                                 "avatar": last_agent.avatar})
         return intro_ch
 
-    async def _get_chat_welcome(self) -> WelcomeChat:
+    async def __get_chat_welcome(self) -> WelcomeChat:
         chat_record = await self.db.fetch_one(query=GET_WELCOME_CHAT_QUERY, values={"lang": self.lang_})
         return WelcomeChat(**chat_record)
 
-    async def _create_message(self, name_, message_, chat_info: UserInfo, avatar: Optional[str] = None):
+    async def __create_message(self, name_, message_, chat_info: UserInfo, avatar: Optional[str] = None):
         created_at = int(time.time())
         await self.redis.publish(self.session_id_, json.dumps({"channel_id": self.session_id_,
                                                                "name": name_, "message": message_,
@@ -230,10 +236,10 @@ class UserRepository(object):
                                         "message": message_, "created_at": created_at,
                                         "avatar": avatar})
 
-    async def _pass_chat_info(self, chat_info: UserInfo) -> None:
+    async def __pass_chat_info(self, chat_info: UserInfo) -> None:
         created_at = int(time.time())
         is_default = chat_info.is_default
-        chat_intro = await self._chat_intro(chat_info)
+        chat_intro = await self.__chat_intro(chat_info)
         await asyncio.sleep(1)
         await self.redis.publish(self.session_id_, json.dumps({"channel_id": self.session_id_,
                                                                "name": "-", "message": '',
@@ -243,23 +249,26 @@ class UserRepository(object):
                                                                "created_at": created_at}))
 
     async def initial_pass_chat_info(self, ch_info):
-        await self._pass_chat_info(chat_info=ch_info)
+        await self.__pass_chat_info(chat_info=ch_info)
 
     async def get_last_chat_history(self) -> List[UserChat]:
-        return await self._chat_history()
+        return await self.__chat_history()
 
     async def get_chat_info(self) -> UserInfo:
-        return await self._chat_info()
+        return await self.__chat_info()
+
+    async def check_chat_info(self) -> UserInfo:
+        return await self.__check_info()
 
     async def set_chat_info(self, *, email: str, phone: str, name: str) -> UserInfo:
         data_to_send = {"channel_id": self.session_id_, "name": name, "phone": phone, "email": email}
         requests.post("http://bitrix_chat:8000/bitrix/deal", json=data_to_send)
 
-        return await self._create_info(email, phone, name=name)
+        return await self.__create_info(email, phone, name=name)
 
     async def set_chat_message(self, *, message: str) -> None:
-        chat_info = await self._get_chat_id()
-        await self._create_message(name_='-', message_=message, chat_info=chat_info)
+        chat_info = await self.__get_chat_id()
+        await self.__create_message(name_='-', message_=message, chat_info=chat_info)
 
         utm_ctx = chat_info.context
         if utm_ctx:
@@ -272,10 +281,10 @@ class UserRepository(object):
         requests.post("http://bitrix_chat:8000/bitrix/publish", json=data_to_send)
 
     async def set_wp_chat_message(self, *, message: str, name: str, phone: str) -> None:
-        chat_info = await self._get_chat_id()
-        await self._create_message(name_='-', message_=message, chat_info=chat_info)
+        chat_info = await self.__get_chat_id()
+        await self.__create_message(name_='-', message_=message, chat_info=chat_info)
         if chat_info.is_default:
-            await self._create_info('', phone_=phone, name=name)
+            await self.__create_info('', phone_=phone, name=name)
 
 
 class AgentRepository(BaseRepository):

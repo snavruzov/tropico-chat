@@ -25,3 +25,9 @@ async def client(app: FastAPI) -> AsyncClient:
             headers={"Content-Type": "application/json"}
         ) as client:
             yield client
+
+
+@pytest.fixture
+def glued_json() -> str:
+    json_data = "{\"foo\": \"bar\"}{\"foo\": \"zulu\"}"
+    return json_data

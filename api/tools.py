@@ -1,6 +1,7 @@
 import requests
 from fastapi import Request
 from loguru import logger
+from collections import deque
 
 PROPERTY_FULL_TYPES = [
     "Apartment",
@@ -45,19 +46,19 @@ def get_client_ip(request: Request):
 
 def json_fixer(js_str: str):
     indexes_js = {}
-    p_stack = []
+    queue = deque()
     result = set()
 
     try:
         for i, c in enumerate(js_str):
             if c == '{':
-                p_stack.append(i)
+                queue.append(i)
             elif c == '}':
-                if len(p_stack) == 0:
+                if len(queue) == 0:
                     raise IndexError("No matching closing parens at: " + str(i))
-                indexes_js[p_stack.pop()] = i
+                indexes_js[queue.pop()] = i
 
-        if len(p_stack) > 0:
+        if len(queue) > 0:
             raise IndexError("No matching opening parens at: " + str(p_stack.pop()))
 
         start_idx = 0

@@ -49,7 +49,7 @@ async def connect_to_db(app: FastAPI) -> None:
             database = Database(DATABASE_URL_TEST, min_size=2, max_size=10)
             await database.connect()
 
-        app.state._db = BaseDatabase(redis, database)
+        app.state.db = BaseDatabase(redis, database)
 
     except Exception as e:
         logger.warning("--- DB CONNECTION ERROR ---")
@@ -59,14 +59,14 @@ async def connect_to_db(app: FastAPI) -> None:
 
 async def close_db_connection(app: FastAPI) -> None:
     try:
-        await app.state._db.db.disconnect()
+        await app.state.db.db.disconnect()
     except Exception as e:
         logger.warning("--- DB DISCONNECT ERROR ---")
         logger.warning(e)
         logger.warning("--- DB DISCONNECT ERROR ---")
 
     try:
-        await app.state._db.redis.close()
+        await app.state.db.redis.close()
     except Exception as e:
         logger.warning("--- REDIS CLOSE ERROR ---")
         logger.warning(e)
