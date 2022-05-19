@@ -59,7 +59,7 @@ def json_fixer(js_str: str):
                 indexes_js[queue.pop()] = i
 
         if len(queue) > 0:
-            raise IndexError("No matching opening parens at: " + str(p_stack.pop()))
+            raise IndexError("No matching opening parens at: " + str(queue.pop()))
 
         start_idx = 0
         while indexes_js.get(start_idx):
