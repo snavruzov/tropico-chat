@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 
 from api import tools
 from db.models import UserInfo, UserChat
-from db.repositories.models import UserRepository, AgentRepository
+from db.repositories.models import UserRepository
 
 
 class MockUserRepository:
@@ -99,7 +99,7 @@ class TestChatRequests:
 
         monkeypatch.setattr(UserRepository, 'check_chat_info', mock_get_chat_info)
 
-        with client.websocket_connect(app.url_path_for("chat-ws", channel='f9eb7ff2-eed0-4c0a-83ba-b0503b59a5cc'),
+        with client.websocket_connect(app.url_path_for("chat-ws", channel='ff2-eed0-4c0a-83ba-b0503b59a5cc'),
                                       headers={"user-agent": "Mozilla/5.0"}) as websocket:
             websocket.close()
 

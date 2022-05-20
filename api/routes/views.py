@@ -4,9 +4,9 @@ from typing import List
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Depends, HTTPException, Body
 from loguru import logger
 from starlette.status import HTTP_400_BAD_REQUEST
-from websockets.exceptions import ConnectionClosedError
 
 from api.dependencies.database import get_repository, get_ws_repository
+from core.exceptions import ConnectionErrorException
 from db.models import UserChat, UserForm
 from db.repositories.models import UserRepository
 
@@ -22,8 +22,6 @@ class SocketManager:
 
 
 manager = SocketManager()
-
-WebSocketConnectionError = (WebSocketDisconnect, ConnectionClosedError)
 
 
 async def receiving(websocket):
@@ -42,33 +40,26 @@ async def chat(
 
     await manager.connect(websocket)
     pubsub = websocket.app.state.db.redis.pubsub()
-    try:
-        ws_status = asyncio.ensure_future(
-             receiving(websocket)
+    ws_status = asyncio.ensure_future(
+         receiving(websocket)
+    )
+
+    chat_info = await users_repo.check_chat_info()
+    if not chat_info:
+        await websocket.close()
+        raise ConnectionErrorException()
+
+    async with pubsub as p:
+        await p.subscribe(channel)
+        asyncio.ensure_future(
+            users_repo.initial_pass_chat_info(ch_info=chat_info)
         )
-
-        chat_info = await users_repo.check_chat_info()
-        if not chat_info:
-            await websocket.close()
-            raise WebSocketDisconnect()
-
-        async with pubsub as p:
-            await p.subscribe(channel)
-            asyncio.ensure_future(
-                users_repo.initial_pass_chat_info(ch_info=chat_info)
-            )
-            while True:
-                if ws_status.done() or ws_status.cancelled():
-                    break
-                msg = await pubsub.get_message(ignore_subscribe_messages=True)
-                if msg and msg.get('data'):
-                    await websocket.send_json(msg)
-
-    except WebSocketConnectionError as err:
-        logger.error("Raised websocket errors!", err)
-    finally:
-        await pubsub.unsubscribe(channel)
-        await pubsub.close()
+        while True:
+            if ws_status.done() or ws_status.cancelled():
+                break
+            msg = await pubsub.get_message(ignore_subscribe_messages=True)
+            if msg and msg.get('data'):
+                await websocket.send_json(msg)
 
 
 @router.post("/user/publish", name='user-publish', status_code=201)

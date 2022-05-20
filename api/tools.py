@@ -1,7 +1,8 @@
+from collections import deque
+
 import requests
 from fastapi import Request
 from loguru import logger
-from collections import deque
 
 PROPERTY_FULL_TYPES = [
     "Apartment",
